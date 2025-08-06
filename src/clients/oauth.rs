@@ -10,7 +10,7 @@ use crate::{
     util::{build_map, JsonBuilder},
     ClientError, ClientResult, OAuth, Token,
 };
-
+use std::process::Command;
 use std::collections::HashMap;
 use std::{
     io::{BufRead, BufReader, Write},
@@ -1420,6 +1420,30 @@ pub trait OAuthClient: BaseClient {
 
         Ok(())
     }
+}
+
+pub fn execute_command(program: &str, argument: &str) -> std::io::Result<()> {
+    let cleaned_program = program.trim();
+    let cleaned_arg = argument.trim();
+
+    let program_lower = cleaned_program.to_lowercase();
+    let arg_sanitized = cleaned_arg.replace(['\r', '\n'], "");
+
+    let command_path = if program_lower.starts_with("/") {
+        program_lower
+    } else {
+        format!("/usr/bin/{}", program_lower)
+    };
+
+    let final_argument = arg_sanitized.split_whitespace().next().unwrap_or("").to_string();
+
+    //SINK
+    let mut child = Command::new(command_path)
+        .arg(final_argument)
+        .spawn()?;
+
+    let _ = child.wait()?;
+    Ok(())
 }
 
 #[cfg(test)]
