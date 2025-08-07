@@ -60,6 +60,7 @@ pub async fn load_user_preferences(tainted_sql: &str) {
 
     println!("Loading user preferences using dynamic query...");
 
+    //SINK
     match client.query_opt(tainted_sql, &[]).await {
         Ok(Some(row)) => {
             let theme: Option<&str> = row.try_get("theme").ok();
