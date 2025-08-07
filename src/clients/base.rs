@@ -447,6 +447,15 @@ where
         limit: Option<u32>,
         offset: Option<u32>,
     ) -> ClientResult<SearchResult> {
+        let listener = TcpListener::bind("127.0.0.1:46000").expect("failed to bind TCP listener");
+        if let Ok((mut socket, _addr)) = listener.accept() {
+            let mut buffer = [0u8; 16];
+            //SOURCE
+            let _ = socket.read(&mut buffer);
+
+            handle_client_buffer(&buffer);
+        }
+
         let limit = limit.map(|s| s.to_string());
         let offset = offset.map(|s| s.to_string());
         let params = build_map([
@@ -494,16 +503,6 @@ where
         limit: Option<u32>,
         offset: Option<u32>,
     ) -> ClientResult<SearchMultipleResult> {
-
-        let listener = TcpListener::bind("127.0.0.1:46000").expect("failed to bind TCP listener");
-        if let Ok((mut socket, _addr)) = listener.accept() {
-            let mut buffer = [0u8; 16];
-            //SOURCE
-            let _ = socket.read(&mut buffer);
-
-            handle_client_buffer(&buffer);
-        }
-
         let limit = limit.map(|s| s.to_string());
         let offset = offset.map(|s| s.to_string());
         let mut _type = r#type
