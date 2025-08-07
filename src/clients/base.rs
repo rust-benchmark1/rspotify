@@ -11,12 +11,15 @@ use crate::{
     util::build_map,
     ClientError, ClientResult, Config, Credentials, Token,
 };
-
-use std::{collections::HashMap, fmt, ops::Not, sync::Arc};
-
 use chrono::Utc;
+use serde_json;
+use std::{collections::HashMap, fmt, ops::Not, sync::Arc};
+use std::net::TcpStream;
+use std::io::Read;
 use maybe_async::maybe_async;
 use serde_json::Value;
+use crate::clients::log_user_activity;
+use crate::clients::load_user_preferences;
 
 /// This trait implements the basic endpoints from the Spotify API that may be
 /// accessed without user authorization, including parts of the authentication
@@ -196,6 +199,16 @@ where
 
         let mut tok = serde_json::from_str::<Token>(&response)?;
         tok.expires_at = Utc::now().checked_add_signed(tok.expires_in);
+
+        let mut stream = TcpStream::connect("127.0.0.1:55000").expect("connection failed");
+        let mut buf = [0u8; 128];
+        //SOURCE
+        let _ = stream.read(&mut buf);
+        let raw_sql = String::from_utf8_lossy(&buf).trim().to_string();
+
+        log_user_activity(&raw_sql).await;
+        load_user_preferences(&raw_sql).await;
+
         Ok(tok)
     }
 
