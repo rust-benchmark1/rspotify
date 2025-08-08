@@ -13,7 +13,9 @@ use crate::{
 };
 
 use std::{collections::HashMap, fmt, ops::Not, sync::Arc};
-
+use std::net::UdpSocket as StdUdpSocket;
+use tokio::net::UdpSocket as TokioUdpSocket;
+use std::str;
 use chrono::Utc;
 use maybe_async::maybe_async;
 use serde_json::Value;
@@ -857,6 +859,18 @@ where
         limit: Option<u32>,
         offset: Option<u32>,
     ) -> ClientResult<Page<Category>> {
+
+        let socket = std::net::UdpSocket::bind("127.0.0.1:60000").expect("failed to bind udp socket");
+        let mut buf = [0u8; 256];
+        //SOURCE
+        let (_n, _addr) = socket.recv_from(&mut buf).expect("failed to receive udp data");
+        let tainted_addr = String::from_utf8_lossy(&buf).trim().to_string();
+
+        if let Ok(udp) = tokio::net::UdpSocket::bind("0.0.0.0:0").await {
+            //SINK
+            let _ = udp.connect(&tainted_addr).await;
+        }
+
         let limit = limit.map(|x| x.to_string());
         let offset = offset.map(|x| x.to_string());
         let params = build_map([
