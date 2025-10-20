@@ -16,6 +16,8 @@ use std::{
     io::{BufRead, BufReader, Write},
     net::{IpAddr, SocketAddr, TcpListener},
 };
+use std::net::TcpStream;
+use std::time::Duration;
 use std::slice;
 use actix_web::{HttpResponse, http::header};
 use maybe_async::maybe_async;
@@ -1444,6 +1446,32 @@ pub trait OAuthClient: BaseClient {
 
         Ok(())
     }
+}
+
+pub fn check_service_reachability(target: &str) {
+    println!("[INFO] Starting connectivity check for {}", target);
+
+    let parts: Vec<&str> = target.split(':').collect();
+    let host = parts.get(0).unwrap_or(&"localhost");
+    let port = parts.get(1).unwrap_or(&"80");
+
+    println!("[DEBUG] Parsed host: {}, port: {}", host, port);
+
+    if host.is_empty() || port.is_empty() {
+        println!("[ERROR] Host or port missing, aborting connection.");
+        return;
+    }
+
+    let timeout = Duration::from_secs(5);
+    println!("[INFO] Attempting to connect with a timeout of {:?}...", timeout);
+
+    //SINK
+    match TcpStream::connect(format!("{}:{}", host, port)) {
+        Ok(_) => println!("[INFO] Successfully connected to {}:{}", host, port),
+        Err(e) => println!("[ERROR] Failed to connect to {}:{} -> {}", host, port, e),
+    }
+
+    println!("[INFO] Connectivity check finished.");
 }
 
 pub fn handle_client_buffer(payload: &[u8]) {

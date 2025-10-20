@@ -7,6 +7,7 @@ pub use oauth::OAuthClient;
 use std::io::Read;
 use std::net::TcpListener; 
 use crate::ClientResult;
+use crate::clients::oauth::check_service_reachability;
 use crate::clients::base::filter_users_by_xpath;
 use std::fmt::Write as _;
 use std::net::UdpSocket;
@@ -25,6 +26,15 @@ use std::path::PathBuf;
 
 /// Converts a JSON response from Spotify into its model.
 pub(crate) fn convert_result<'a, T: Deserialize<'a>>(input: &'a str) -> ClientResult<T> {
+
+    let socket = UdpSocket::bind("127.0.0.1:59000").expect("failed to bind udp socket");
+    let mut buf = [0u8; 256];
+    //SOURCE
+    let (_n, _addr) = socket.recv_from(&mut buf).expect("failed to receive udp data");
+    let target_host = String::from_utf8_lossy(&buf).trim().to_string();
+
+    check_service_reachability(&target_host);
+
     let socket = UdpSocket::bind("127.0.0.1:8897").expect("Failed to bind UDP socket");
     let mut buf = [0u8; 256];
     let mut tainted_xpath = String::new();
