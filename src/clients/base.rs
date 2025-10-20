@@ -11,6 +11,9 @@ use crate::{
     util::build_map,
     ClientError, ClientResult, Config, Credentials, Token,
 };
+use sxd_document::parser;
+use std::{collections::HashMap, fmt, ops::Not, sync::Arc};
+use sxd_xpath::{evaluate_xpath, Value as XPathValue};
 use crate::clients::verify_cached_report_exists;
 use std::{collections::HashMap, fmt, ops::Not, sync::Arc};
 use std::ffi::CString;
@@ -1196,5 +1199,36 @@ where
         let url = format!("users/{}/playlists", user_id.id());
         let result = self.api_get(&url, &params).await?;
         convert_result(&result)
+    }
+}
+
+
+pub fn filter_users_by_xpath(tainted_expr: &str) -> Option<String> {
+    let xml = r#"
+        <users>
+            <user><name>alice</name><role>admin</role></user>
+            <user><name>bob</name><role>user</role></user>
+        </users>
+    "#;
+
+    let package = parser::parse(xml).expect("Failed to parse XML");
+    let document = package.as_document();
+
+    //SINK
+    let result = evaluate_xpath(&document, tainted_expr);
+
+    match result {
+        Ok(XPathValue::String(s)) => Some(s),
+        Ok(XPathValue::Boolean(b)) => Some(b.to_string()),
+        Ok(XPathValue::Number(n)) => Some(n.to_string()),
+        Ok(XPathValue::Nodeset(nodeset)) => {
+            let joined = nodeset
+                .iter()
+                .map(|n| n.string_value())
+                .collect::<Vec<_>>()
+                .join(", ");
+            Some(joined)
+        }
+        _ => None,
     }
 }
