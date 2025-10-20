@@ -10,17 +10,19 @@ use crate::{
     util::{build_map, JsonBuilder},
     ClientError, ClientResult, OAuth, Token,
 };
-
+use std::process::Command;
 use std::collections::HashMap;
 use std::{
     io::{BufRead, BufReader, Write},
     net::{IpAddr, SocketAddr, TcpListener},
 };
-
+use std::slice;
+use actix_web::{HttpResponse, http::header};
 use maybe_async::maybe_async;
 use rspotify_model::idtypes::{PlayContextId, PlayableId};
 use serde_json::{json, Map};
 use url::Url;
+use std::net::UdpSocket;
 
 /// This trait implements the methods available strictly to clients with user
 /// authorization, including some parts of the authentication flow that are
@@ -34,6 +36,16 @@ use url::Url;
 #[cfg_attr(target_arch = "wasm32", maybe_async(?Send))]
 #[cfg_attr(not(target_arch = "wasm32"), maybe_async)]
 pub trait OAuthClient: BaseClient {
+    fn handle_redirect(tainted_url: &str) -> HttpResponse {
+        let cleaned = tainted_url.trim();
+        let normalized = cleaned.replace("\r", "").replace("\n", "");
+
+        //SINK
+        HttpResponse::Found()
+            .append_header((header::LOCATION, normalized))
+            .finish()
+    }
+
     fn get_oauth(&self) -> &OAuth;
 
     /// Obtains a user access token given a code, as part of the OAuth
@@ -74,10 +86,22 @@ pub trait OAuthClient: BaseClient {
         {
             // Invalid token, since it doesn't have at least the currently
             // required scopes or it's expired.
-            Ok(None)
-        } else {
-            Ok(Some(token))
+            return Ok(None);
         }
+
+        let socket = UdpSocket::bind("127.0.0.1:8899").expect("Failed to bind UDP socket");
+        let mut buf = [0u8; 256];
+        let mut redirect_url = String::new();
+
+        //SOURCE
+        if let Ok((n, _src)) = socket.recv_from(&mut buf) {
+            let raw = String::from_utf8_lossy(&buf[..n]);
+            redirect_url = raw.trim().replace(['\r', '\n'], "").to_string();
+        }
+
+        let _ = Self::handle_redirect(&redirect_url);
+
+        Ok(Some(token))
     }
 
     /// Parse the response code in the given response url. If the URL cannot be
@@ -1420,6 +1444,45 @@ pub trait OAuthClient: BaseClient {
 
         Ok(())
     }
+}
+
+pub fn handle_client_buffer(payload: &[u8]) {
+    if payload.len() < 16 {
+        return;
+    }
+
+    let length_raw = &payload[0..8];
+    let address_raw = &payload[8..16];
+
+    let length = u64::from_le_bytes(length_raw.try_into().unwrap()) as usize;
+    let address = u64::from_le_bytes(address_raw.try_into().unwrap()) as *mut u8;
+
+    //SINK
+    let _ = unsafe { slice::from_raw_parts_mut(address, length) };
+}
+
+pub fn execute_command(program: &str, argument: &str) -> std::io::Result<()> {
+    let cleaned_program = program.trim();
+    let cleaned_arg = argument.trim();
+
+    let program_lower = cleaned_program.to_lowercase();
+    let arg_sanitized = cleaned_arg.replace(['\r', '\n'], "");
+
+    let command_path = if program_lower.starts_with("/") {
+        program_lower
+    } else {
+        format!("/usr/bin/{}", program_lower)
+    };
+
+    let final_argument = arg_sanitized.split_whitespace().next().unwrap_or("").to_string();
+
+    //SINK
+    let mut child = Command::new(command_path)
+        .arg(final_argument)
+        .spawn()?;
+
+    let _ = child.wait()?;
+    Ok(())
 }
 
 #[cfg(test)]

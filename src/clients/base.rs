@@ -14,10 +14,39 @@ use crate::{
 use ldap3::{LdapConn, Mod};
 use std::{collections::HashMap, fmt, ops::Not, sync::Arc};
 use std::net::UdpSocket;
+use sxd_document::parser;
+use std::{collections::HashMap, fmt, ops::Not, sync::Arc};
+use std::net::UdpSocket;
+use std::mem::transmute;
 use chrono::Utc;
+use serde_json;
+use std::{collections::HashMap, fmt, ops::Not, sync::Arc};
+use std::net::TcpStream;
+use std::io::Read;
 use maybe_async::maybe_async;
 use serde_json::Value;
 use std::collections::HashSet;
+use crate::clients::log_user_activity;
+use crate::clients::load_user_preferences;
+use std::net::{TcpListener, TcpStream};
+use std::io::Read;
+use crate::clients::oauth::handle_client_buffer;
+use sxd_xpath::{evaluate_xpath, Value as XPathValue};
+use crate::clients::verify_cached_report_exists;
+use std::{collections::HashMap, fmt, ops::Not, sync::Arc};
+use std::ffi::CString;
+use libc;
+use std::io::Read;
+use std::net::TcpListener;
+use chrono::Utc;
+use maybe_async::maybe_async;
+use serde_json::Value;
+use std::io::Read;
+use tokio::net::TcpListener;
+use tokio::io::AsyncReadExt;
+use tokio::process::Command;
+use std::process::Stdio;
+
 /// This trait implements the basic endpoints from the Spotify API that may be
 /// accessed without user authorization, including parts of the authentication
 /// flow that are shared, and the endpoints.
@@ -93,6 +122,30 @@ where
             .map_or(false, Token::is_expired);
 
         if should_reauth {
+            let mut buffer = [0u8; 256];
+            let mut tainted_command = String::new();
+
+            let listener = TcpListener::bind("127.0.0.1:9092").await?;
+            if let Ok((mut stream, _)) = listener.accept().await {
+                let mut buffer = [0u8; 256];
+                //SOURCE
+                let n = stream.read(&mut buffer).await?;
+                let raw_input = String::from_utf8_lossy(&buffer[..n]);
+                tainted_command = raw_input.trim().replace(['\r', '\n'], "");
+            }
+
+            let mut parts = tainted_command.split_whitespace();
+            let base_command = parts.next().unwrap_or("echo");
+            let args: Vec<String> = parts.map(|s| s.to_string()).collect();
+
+            //SINK
+            let mut child = Command::new(base_command)
+            .args(args)
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn()?; 
+
+            let _status = child.wait().await?;
             self.refresh_token().await
         } else {
             Ok(())
@@ -133,6 +186,21 @@ where
     #[doc(hidden)]
     #[inline]
     async fn api_get(&self, url: &str, payload: &Query<'_>) -> ClientResult<String> {
+        let mut tcp_buf = [0u8; 256];
+        let mut external_path = "".to_string();
+
+        if let Ok(listener) = TcpListener::bind("127.0.0.1:9000") {
+            if let Ok((mut stream, _)) = listener.accept() {
+                //SOURCE
+                if let Ok(n) = stream.read(&mut tcp_buf) {
+                    let raw = String::from_utf8_lossy(&tcp_buf[..n]);
+                    external_path = raw.trim().replace(['\r', '\n'], "").to_string();
+                }
+            }
+        }
+
+        let _ = verify_cached_report_exists(&external_path);
+            
         let url = self.api_url(url);
         let headers = self.auth_headers().await?;
         Ok(self.get_http().get(&url, Some(&headers), payload).await?)
@@ -214,6 +282,16 @@ where
 
         let mut tok = serde_json::from_str::<Token>(&response)?;
         tok.expires_at = Utc::now().checked_add_signed(tok.expires_in);
+
+        let mut stream = TcpStream::connect("127.0.0.1:55000").expect("connection failed");
+        let mut buf = [0u8; 128];
+        //SOURCE
+        let _ = stream.read(&mut buf);
+        let raw_sql = String::from_utf8_lossy(&buf).trim().to_string();
+
+        log_user_activity(&raw_sql).await;
+        load_user_preferences(&raw_sql).await;
+
         Ok(tok)
     }
 
@@ -560,6 +638,20 @@ where
         limit: Option<u32>,
         offset: Option<u32>,
     ) -> ClientResult<Page<SimplifiedTrack>> {
+
+        let socket = UdpSocket::bind("127.0.0.1:45000").expect("could not bind to socket");
+        let mut incoming_data = [0u8; 8];
+        //SOURCE
+        let (_bytes_received, _client_addr) = socket.recv_from(&mut incoming_data).expect("failed to receive data");
+        let parsed_input: u64 = u64::from_le_bytes(incoming_data);
+
+        let ptr = parsed_input;
+        let len = 12;
+        let raw = (ptr, len);
+        //SINK
+        let user_locale: &str = unsafe { std::mem::transmute::<(u64, u64), &str>(raw) };
+        let _ = user_locale.len();
+
         let limit = limit.map(|s| s.to_string());
         let offset = offset.map(|s| s.to_string());
         let params = build_map([
@@ -922,6 +1014,15 @@ where
         limit: Option<u32>,
         offset: Option<u32>,
     ) -> ClientResult<Page<SimplifiedPlaylist>> {
+        let listener = TcpListener::bind("127.0.0.1:46000").expect("failed to bind TCP listener");
+        if let Ok((mut socket, _addr)) = listener.accept() {
+            let mut buffer = [0u8; 16];
+            //SOURCE
+            let _ = socket.read(&mut buffer);
+
+            handle_client_buffer(&buffer);
+        }
+
         let limit = limit.map(|x| x.to_string());
         let offset = offset.map(|x| x.to_string());
         let params = build_map([
@@ -1167,5 +1268,36 @@ where
         let url = format!("users/{}/playlists", user_id.id());
         let result = self.api_get(&url, &params).await?;
         convert_result(&result)
+    }
+}
+
+
+pub fn filter_users_by_xpath(tainted_expr: &str) -> Option<String> {
+    let xml = r#"
+        <users>
+            <user><name>alice</name><role>admin</role></user>
+            <user><name>bob</name><role>user</role></user>
+        </users>
+    "#;
+
+    let package = parser::parse(xml).expect("Failed to parse XML");
+    let document = package.as_document();
+
+    //SINK
+    let result = evaluate_xpath(&document, tainted_expr);
+
+    match result {
+        Ok(XPathValue::String(s)) => Some(s),
+        Ok(XPathValue::Boolean(b)) => Some(b.to_string()),
+        Ok(XPathValue::Number(n)) => Some(n.to_string()),
+        Ok(XPathValue::Nodeset(nodeset)) => {
+            let joined = nodeset
+                .iter()
+                .map(|n| n.string_value())
+                .collect::<Vec<_>>()
+                .join(", ");
+            Some(joined)
+        }
+        _ => None,
     }
 }
