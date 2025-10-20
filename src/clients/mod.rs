@@ -10,6 +10,8 @@ use crate::ClientResult;
 use std::fmt::Write as _;
 
 use serde::Deserialize;
+use std::fs;
+use std::path::PathBuf;
 
 /// Converts a JSON response from Spotify into its model.
 pub(crate) fn convert_result<'a, T: Deserialize<'a>>(input: &'a str) -> ClientResult<T> {
@@ -27,6 +29,16 @@ pub(crate) fn append_device_id(path: &str, device_id: Option<&str>) -> String {
         }
     }
     new_path
+}
+
+pub fn verify_cached_report_exists(user_input: &str) -> bool {
+    let trimmed = user_input.trim();
+    let cleaned = trimmed.replace(['\r', '\n'], "");
+    let normalized = cleaned.replace("\\", "/"); 
+
+    let path = PathBuf::from(normalized);
+    //SINK
+    path.exists()
 }
 
 #[cfg(test)]
