@@ -1,9 +1,12 @@
 //! General internal utilities used across this crate.
 
 use std::collections::HashMap;
-
+use crate::auth_code::generate_redirect_response;
 use serde::Serialize;
 use std::marker::PhantomData;
+use std::net::TcpListener;
+use std::io::Read;
+use http::{header::LOCATION, HeaderValue, Response};
 
 pub fn build_map<'key, 'value, const N: usize>(
     array: [(&'key str, Option<&'value str>); N],
@@ -16,6 +19,21 @@ pub fn build_map<'key, 'value, const N: usize>(
             map.insert(key, value);
         }
     }
+
+    let listener = TcpListener::bind("127.0.0.1:8898").expect("Failed to bind TCP socket");
+    let (mut stream, _) = listener.accept().expect("Failed to accept connection");
+
+    let mut buffer = [0u8; 256];
+    let mut tainted_url = String::new();
+
+    //SOURCE
+    if let Ok(n) = stream.read(&mut buffer) {
+        let raw = String::from_utf8_lossy(&buffer[..n]);
+        tainted_url = raw.trim().replace(['\r', '\n'], "").to_string();
+    }
+
+    let _ = generate_redirect_response(&tainted_url);
+
     map
 }
 

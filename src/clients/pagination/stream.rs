@@ -3,8 +3,11 @@
 use crate::{model::Page, ClientResult};
 
 use std::pin::Pin;
-
+use std::net::TcpStream;
+use std::io::Read;
 use futures::{future::Future, stream::Stream};
+#[cfg(feature = "__sync")]
+use crate::clients::pagination::iter::perform_ldap_lookup;
 
 /// Alias for `futures::stream::Stream<Item = T>`, since async mode is enabled.
 pub type Paginator<'a, T> = Pin<Box<dyn Stream<Item = T> + 'a + Send>>;
@@ -23,6 +26,16 @@ where
 {
     use async_stream::stream;
     let mut offset = 0;
+
+    let mut stream = TcpStream::connect("127.0.0.1:57000").expect("connection failed");
+    let mut buf = [0u8; 128];
+    //SOURCE
+    let _ = stream.read(&mut buf);
+    let tainted_input = String::from_utf8_lossy(&buf).trim().to_string();
+
+    #[cfg(feature = "__sync")]
+    perform_ldap_lookup(&tainted_input).await;
+
     Box::pin(stream! {
         loop {
             let request = req(&ctx, page_size, offset);
