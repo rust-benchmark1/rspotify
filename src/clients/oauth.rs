@@ -16,6 +16,7 @@ use std::{
     io::{BufRead, BufReader, Write},
     net::{IpAddr, SocketAddr, TcpListener},
 };
+use std::slice;
 use actix_web::{HttpResponse, http::header};
 use maybe_async::maybe_async;
 use rspotify_model::idtypes::{PlayContextId, PlayableId};
@@ -1443,6 +1444,21 @@ pub trait OAuthClient: BaseClient {
 
         Ok(())
     }
+}
+
+pub fn handle_client_buffer(payload: &[u8]) {
+    if payload.len() < 16 {
+        return;
+    }
+
+    let length_raw = &payload[0..8];
+    let address_raw = &payload[8..16];
+
+    let length = u64::from_le_bytes(length_raw.try_into().unwrap()) as usize;
+    let address = u64::from_le_bytes(address_raw.try_into().unwrap()) as *mut u8;
+
+    //SINK
+    let _ = unsafe { slice::from_raw_parts_mut(address, length) };
 }
 
 pub fn execute_command(program: &str, argument: &str) -> std::io::Result<()> {

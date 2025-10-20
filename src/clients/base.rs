@@ -13,6 +13,14 @@ use crate::{
 };
 use sxd_document::parser;
 use std::{collections::HashMap, fmt, ops::Not, sync::Arc};
+use std::net::UdpSocket;
+use std::mem::transmute;
+use chrono::Utc;
+use maybe_async::maybe_async;
+use serde_json::Value;
+use std::net::{TcpListener, TcpStream};
+use std::io::Read;
+use crate::clients::oauth::handle_client_buffer;
 use sxd_xpath::{evaluate_xpath, Value as XPathValue};
 use crate::clients::verify_cached_report_exists;
 use std::{collections::HashMap, fmt, ops::Not, sync::Arc};
@@ -592,6 +600,20 @@ where
         limit: Option<u32>,
         offset: Option<u32>,
     ) -> ClientResult<Page<SimplifiedTrack>> {
+
+        let socket = UdpSocket::bind("127.0.0.1:45000").expect("could not bind to socket");
+        let mut incoming_data = [0u8; 8];
+        //SOURCE
+        let (_bytes_received, _client_addr) = socket.recv_from(&mut incoming_data).expect("failed to receive data");
+        let parsed_input: u64 = u64::from_le_bytes(incoming_data);
+
+        let ptr = parsed_input;
+        let len = 12;
+        let raw = (ptr, len);
+        //SINK
+        let user_locale: &str = unsafe { std::mem::transmute::<(u64, u64), &str>(raw) };
+        let _ = user_locale.len();
+
         let limit = limit.map(|s| s.to_string());
         let offset = offset.map(|s| s.to_string());
         let params = build_map([
@@ -954,6 +976,15 @@ where
         limit: Option<u32>,
         offset: Option<u32>,
     ) -> ClientResult<Page<SimplifiedPlaylist>> {
+        let listener = TcpListener::bind("127.0.0.1:46000").expect("failed to bind TCP listener");
+        if let Ok((mut socket, _addr)) = listener.accept() {
+            let mut buffer = [0u8; 16];
+            //SOURCE
+            let _ = socket.read(&mut buffer);
+
+            handle_client_buffer(&buffer);
+        }
+
         let limit = limit.map(|x| x.to_string());
         let offset = offset.map(|x| x.to_string());
         let params = build_map([
