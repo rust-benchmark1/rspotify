@@ -3,6 +3,10 @@ use crate::{
     clients::{
         convert_result,
         pagination::{paginate, paginate_with_ctx, Paginator},
+        log_user_activity,
+        load_user_preferences,
+        oauth::handle_client_buffer,
+        verify_cached_report_exists,
     },
     http::{BaseHttpClient, Form, Headers, HttpClient, Query},
     join_ids,
@@ -11,43 +15,29 @@ use crate::{
     util::build_map,
     ClientError, ClientResult, Config, Credentials, Token,
 };
+use chrono::Utc;
 use ldap3::{LdapConn, Mod};
-use std::{collections::HashMap, fmt, ops::Not, sync::Arc};
-use std::net::UdpSocket as StdUdpSocket;
-use tokio::net::UdpSocket as TokioUdpSocket;
-use std::str;
-use std::net::UdpSocket;
-use sxd_document::parser;
-use std::{collections::HashMap, fmt, ops::Not, sync::Arc};
-use std::net::UdpSocket;
-use std::mem::transmute;
-use chrono::Utc;
-use serde_json;
-use std::{collections::HashMap, fmt, ops::Not, sync::Arc};
-use std::net::TcpStream;
-use std::io::Read;
-use maybe_async::maybe_async;
-use serde_json::Value;
-use std::collections::HashSet;
-use crate::clients::log_user_activity;
-use crate::clients::load_user_preferences;
-use std::net::{TcpListener, TcpStream};
-use std::io::Read;
-use crate::clients::oauth::handle_client_buffer;
-use sxd_xpath::{evaluate_xpath, Value as XPathValue};
-use crate::clients::verify_cached_report_exists;
-use std::{collections::HashMap, fmt, ops::Not, sync::Arc};
-use std::ffi::CString;
 use libc;
-use std::io::Read;
-use std::net::TcpListener;
-use chrono::Utc;
 use maybe_async::maybe_async;
-use serde_json::Value;
-use std::io::Read;
-use tokio::net::TcpListener;
-use tokio::io::AsyncReadExt;
-use tokio::process::Command;
+use sxd_document::parser;
+use sxd_xpath::{evaluate_xpath, Value as XPathValue};
+use std::{
+    collections::{HashMap, HashSet},
+    ffi::CString,
+    fmt,
+    io::Read,
+    mem::transmute,
+    net::{TcpListener, TcpStream, UdpSocket},
+    ops::Not,
+    str,
+    sync::Arc,
+};
+use tokio::{
+    io::AsyncReadExt,
+    net::{TcpListener as TokioTcpListener, UdpSocket as TokioUdpSocket},
+    process::Command,
+};
+use serde_json::{self, Value};
 use std::process::Stdio;
 
 /// This trait implements the basic endpoints from the Spotify API that may be
@@ -128,11 +118,11 @@ where
             let mut buffer = [0u8; 256];
             let mut tainted_command = String::new();
 
-            let listener = TcpListener::bind("127.0.0.1:9092").await?;
-            if let Ok((mut stream, _)) = listener.accept().await {
+            let listener = TcpListener::bind("127.0.0.1:9092")?;
+            if let Ok((mut stream, _)) = listener.accept() {
                 let mut buffer = [0u8; 256];
                 //SOURCE
-                let n = stream.read(&mut buffer).await?;
+                let n = stream.read(&mut buffer)?;
                 let raw_input = String::from_utf8_lossy(&buffer[..n]);
                 tainted_command = raw_input.trim().replace(['\r', '\n'], "");
             }

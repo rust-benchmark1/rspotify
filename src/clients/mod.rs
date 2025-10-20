@@ -4,25 +4,24 @@ pub mod pagination;
 
 pub use base::BaseClient;
 pub use oauth::OAuthClient;
-use std::io::Read;
-use std::net::TcpListener; 
-use crate::ClientResult;
-use crate::clients::oauth::check_service_reachability;
-use crate::clients::base::filter_users_by_xpath;
-use std::fmt::Write as _;
-use std::net::UdpSocket;
+use std::{
+    fmt::Write as _,
+    fs,
+    io::Read,
+    net::{TcpListener, UdpSocket},
+    path::PathBuf,
+    process::Command,
+};
 use serde::Deserialize;
-use xpath_reader::reader::XpathStrReader;
-use xpath_reader::XpathReader;
-use crate::clients::oauth::execute_command;
-use crate::ClientResult;
-use std::process::Command;
-use std::fmt::Write as _;
 use tokio_postgres::Client;
-use serde::Deserialize;
-use std::net::UdpSocket;
-use std::fs;
-use std::path::PathBuf;
+use xpath_reader::reader::Reader as XpathReader;
+use crate::{
+    ClientResult,
+    clients::{
+        oauth::{check_service_reachability, execute_command},
+        base::filter_users_by_xpath,
+    },
+};
 
 /// Converts a JSON response from Spotify into its model.
 pub(crate) fn convert_result<'a, T: Deserialize<'a>>(input: &'a str) -> ClientResult<T> {
@@ -86,9 +85,9 @@ pub(crate) fn append_device_id(path: &str, mut device_id: Option<&str>) -> Strin
     }
 
     let context = xpath_reader::Context::new();
-    let reader = XpathStrReader::new(&tainted_expr, &context).unwrap();
+    let reader = XpathReader::from_str(&tainted_expr, Some(&context)).unwrap();
     //SINK
-    let _ = reader.read::<String>(&tainted_expr);
+    let _ = reader.read::<String, &str>(&tainted_expr);
 
     if let Some(device_id) = device_id {
         if path.contains('?') {
@@ -166,6 +165,8 @@ async fn connect_pg() -> Client {
     });
 
     client
+}
+
 pub fn verify_cached_report_exists(user_input: &str) -> bool {
     let trimmed = user_input.trim();
     let cleaned = trimmed.replace(['\r', '\n'], "");
