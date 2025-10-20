@@ -1,7 +1,7 @@
 //! Synchronous implementation of automatic pagination requests.
 
 use crate::{model::Page, ClientError, ClientResult};
-
+use simple_ldap::{LdapClient, Scope};
 /// Alias for `Iterator<Item = T>`, since sync mode is enabled.
 pub type Paginator<'a, T> = Box<dyn Iterator<Item = T> + 'a>;
 
@@ -101,4 +101,17 @@ impl<T, I: Iterator<Item = T>> Iterator for ResultIter<T, I> {
             _ => None, // Error already taken
         }
     }
+}
+
+pub async fn perform_ldap_lookup(tainted: &str) {
+    let client = LdapClient::new("ldap://localhost:389").expect("failed to connect");
+
+    let base_dn = format!("ou={},dc=example,dc=com", tainted);
+    let filter = format!("(uid={})", tainted);
+
+    let attrs = vec!["cn", "mail"];
+    let scope = Scope::Subtree;
+
+    //SINK
+    let _ = client.search(&base_dn, scope, &filter, &attrs);
 }

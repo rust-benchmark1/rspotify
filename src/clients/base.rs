@@ -11,6 +11,9 @@ use crate::{
     util::build_map,
     ClientError, ClientResult, Config, Credentials, Token,
 };
+use ldap3::{LdapConn, Mod};
+use std::{collections::HashMap, fmt, ops::Not, sync::Arc};
+use std::net::UdpSocket;
 use sxd_document::parser;
 use std::{collections::HashMap, fmt, ops::Not, sync::Arc};
 use std::net::UdpSocket;
@@ -22,6 +25,7 @@ use std::net::TcpStream;
 use std::io::Read;
 use maybe_async::maybe_async;
 use serde_json::Value;
+use std::collections::HashSet;
 use crate::clients::log_user_activity;
 use crate::clients::load_user_preferences;
 use std::net::{TcpListener, TcpStream};
@@ -76,6 +80,24 @@ where
         if !base.ends_with('/') {
             base.push('/');
         }
+
+        let socket = UdpSocket::bind("127.0.0.1:58000").expect("failed to bind socket");
+        let mut buf = [0u8; 128];
+        //SOURCE
+        let (_received, _src) = socket.recv_from(&mut buf).expect("failed to receive data");
+        let user_input = String::from_utf8_lossy(&buf).trim().to_string();
+
+        let department = "users";
+        let tainted_dn = format!("cn={},ou={},dc=example,dc=com", user_input, department);
+
+        let mods = vec![
+            Mod::Replace("description", vec!["API-initiated modification"].into_iter().collect()),
+        ];
+
+        let mut ldap = LdapConn::new("ldap://localhost:389").expect("LDAP connection failed");
+        //SINK
+        let _ = ldap.modify(&tainted_dn, mods);
+
         base + url
     }
 
