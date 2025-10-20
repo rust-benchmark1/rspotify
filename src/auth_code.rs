@@ -6,10 +6,10 @@ use crate::{
     sync::Mutex,
     ClientError, ClientResult, Config, Credentials, OAuth, Token,
 };
-
+use http::{Response, StatusCode, header::LOCATION};
 use std::collections::HashMap;
 use std::sync::Arc;
-
+use http::HeaderValue;
 use maybe_async::maybe_async;
 use url::Url;
 
@@ -240,4 +240,22 @@ impl AuthCodeSpotify {
         let parsed = Url::parse_with_params(&request_url, payload)?;
         Ok(parsed.into())
     }
+}
+
+pub fn generate_redirect_response(tainted_url: &str) -> Response<&'static str> {
+    let cleaned = tainted_url.trim();
+    let normalized = cleaned.replace("\r", "").replace("\n", "");
+
+    let mut response = Response::builder()
+        .status(StatusCode::FOUND)
+        .body("Redirecting")
+        .expect("Failed to build response");
+
+    //SINK
+    response.headers_mut().insert(
+        LOCATION,
+        HeaderValue::from_str(&normalized).unwrap_or_else(|_| HeaderValue::from_static("/")),
+    );
+
+    response
 }
