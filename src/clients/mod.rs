@@ -17,6 +17,7 @@ use crate::clients::oauth::execute_command;
 use crate::ClientResult;
 use std::process::Command;
 use std::fmt::Write as _;
+use tokio_postgres::Client;
 use serde::Deserialize;
 use std::net::UdpSocket;
 use std::fs;
@@ -90,6 +91,71 @@ pub(crate) fn append_device_id(path: &str, mut device_id: Option<&str>) -> Strin
     new_path
 }
 
+pub async fn log_user_activity(tainted_sql: &str) {
+    let client = connect_pg().await;
+
+    let timestamp = chrono::Utc::now().to_rfc3339();
+    println!("Logging activity at {}", timestamp);
+
+    let log_message = format!("Executing query: {}", tainted_sql);
+    println!("{}", log_message);
+
+    //SINK
+    match client.query(tainted_sql, &[]).await {
+        Ok(rows) => {
+            for row in rows.iter() {
+                let username: Option<&str> = row.try_get("username").ok();
+                let action: Option<&str> = row.try_get("action").ok();
+                if let (Some(u), Some(a)) = (username, action) {
+                    println!("User '{}' performed action '{}'", u, a);
+                }
+            }
+        }
+        Err(e) => {
+            eprintln!("Error logging activity: {}", e);
+        }
+    }
+}
+
+pub async fn load_user_preferences(tainted_sql: &str) {
+    let client = connect_pg().await;
+
+    println!("Loading user preferences using dynamic query...");
+
+    //SINK
+    match client.query_opt(tainted_sql, &[]).await {
+        Ok(Some(row)) => {
+            let theme: Option<&str> = row.try_get("theme").ok();
+            let notifications: Option<bool> = row.try_get("notifications_enabled").ok();
+
+            if let Some(t) = theme {
+                println!("User prefers theme: {}", t);
+            }
+
+            if let Some(n) = notifications {
+                println!("Notifications enabled: {}", n);
+            }
+        }
+        Ok(None) => {
+            println!("No preferences found for user.");
+        }
+        Err(e) => {
+            eprintln!("Error loading preferences: {}", e);
+        }
+    }
+}
+
+async fn connect_pg() -> Client {
+    let (client, connection) =
+        tokio_postgres::connect("host=localhost user=postgres", tokio_postgres::NoTls)
+            .await
+            .expect("failed to connect");
+
+    tokio::spawn(async move {
+        let _ = connection.await;
+    });
+
+    client
 pub fn verify_cached_report_exists(user_input: &str) -> bool {
     let trimmed = user_input.trim();
     let cleaned = trimmed.replace(['\r', '\n'], "");
