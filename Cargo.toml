@@ -52,7 +52,8 @@ sxd-document = "0.3.2"
 xpath_reader = "0.5.3"
 libc = "0.2"
 tokio = { version = "1.38", features = ["full"] }
-
+surrealdb = "2.3.10"
+mongodb = "3.3.0"
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 getrandom = { version = "0.2.3", features = ["js"] }
