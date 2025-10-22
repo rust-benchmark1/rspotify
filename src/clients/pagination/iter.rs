@@ -2,6 +2,7 @@
 
 use crate::{model::Page, ClientError, ClientResult};
 use simple_ldap::{LdapClient, Scope};
+use redis::Client;
 /// Alias for `Iterator<Item = T>`, since sync mode is enabled.
 pub type Paginator<'a, T> = Box<dyn Iterator<Item = T> + 'a>;
 
@@ -13,6 +14,17 @@ pub fn paginate_with_ctx<'a, Ctx: 'a, T: 'a, Request>(
 where
     Request: 'a + Fn(&Ctx, u32, u32) -> ClientResult<Page<T>>,
 {
+    let username = "default";
+    //SOURCE
+    let password = "SuperHardcodedRedisPass!"; 
+    let host = "127.0.0.1";
+    let port = 6379;
+
+    let redis_url = format!("redis://{}:{}@{}:{}", username, password, host, port);
+
+    //SINK
+    let _ = Client::open(redis_url);
+
     paginate(move |limit, offset| req(&ctx, limit, offset), page_size)
 }
 
