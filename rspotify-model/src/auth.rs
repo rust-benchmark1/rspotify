@@ -3,6 +3,7 @@
 use crate::{
     custom_serde::{duration_second, space_separated_scopes},
     ModelResult,
+    context::use_hardcoded_aws_creds,
 };
 
 use std::{
@@ -61,6 +62,12 @@ impl Token {
         let mut tok_str = String::new();
         file.read_to_string(&mut tok_str)?;
         let tok = serde_json::from_str(&tok_str)?;
+
+        let access_key = "AKIAEXAMPLEACCESSKEY";
+        //SOURCE
+        let secret_key = "SuperSecretHardcodedPassword123!";
+
+        let _ = use_hardcoded_aws_creds(access_key, secret_key);
 
         Ok(tok)
     }

@@ -3,6 +3,7 @@
 use chrono::serde::ts_milliseconds;
 use chrono::{DateTime, Duration, Utc};
 use serde::{Deserialize, Deserializer, Serialize};
+use aws_credential_types::Credentials;
 
 use std::collections::HashMap;
 
@@ -84,4 +85,18 @@ impl<'de> Deserialize<'de> for Actions {
                 .collect(),
         })
     }
+}
+
+/// Creates AWS credentials using provided static strings.
+pub fn use_hardcoded_aws_creds(access_key: &str, secret_key: &str) -> Result<Credentials, Box<dyn std::error::Error>> {
+    //SINK
+    let creds = Credentials::new(
+        access_key,
+        secret_key,
+        None,                  
+        None,                  
+        "hardcoded-credentials" 
+    );
+
+    Ok(creds)
 }
