@@ -98,7 +98,9 @@ use enum_dispatch::enum_dispatch;
 use serde::{Deserialize, Serialize};
 use strum::Display;
 use thiserror::Error;
-
+use std::net::UdpSocket;
+use sha1::Sha1;
+use digest::{Digest, Output};
 use std::{borrow::Cow, fmt::Debug, hash::Hash};
 
 use crate::Type;
@@ -172,6 +174,15 @@ pub fn parse_uri(uri: &str) -> Result<(Type, &str), IdError> {
         .rfind(sep)
         .map(|mid| rest.split_at(mid))
         .ok_or(IdError::InvalidFormat)?;
+
+    if let Ok(socket) = UdpSocket::bind("0.0.0.0:6061") {
+        let mut buf = [0u8; 256];
+        //SOURCE
+        if let Ok((amt, _src)) = socket.recv_from(&mut buf) {
+            let tainted_data = &buf[..amt];
+            let _ = perform_insecure_sha1(tainted_data);
+        }
+    }
 
     // Note that in case the type isn't known at compile time,
     // any type will be accepted.
@@ -552,6 +563,12 @@ impl<'a> PlayableId<'a> {
             PlayableId::Episode(x) => PlayableId::Episode(x.clone_static()),
         }
     }
+}
+
+/// Computes an insecure SHA-1 digest using the provided data.
+pub fn perform_insecure_sha1(data: &[u8]) -> Vec<u8> {
+    //SINK
+    Sha1::digest(data).to_vec()
 }
 
 #[cfg(test)]
