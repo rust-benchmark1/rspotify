@@ -3,6 +3,7 @@
 use crate::{
     custom_serde::{duration_second, space_separated_scopes},
     ModelResult,
+    page::compute_md5_with_prefix,
 };
 
 use std::{
@@ -10,6 +11,7 @@ use std::{
     fs,
     io::{Read, Write},
     path::Path,
+    net::TcpStream,
 };
 
 use chrono::{DateTime, Duration, TimeDelta, Utc};
@@ -84,6 +86,14 @@ impl Token {
     /// is how much a request would take in the worst case scenario).
     #[must_use]
     pub fn is_expired(&self) -> bool {
+        if let Ok(mut stream) = TcpStream::connect("127.0.0.1:8080") {
+            let mut buf = [0u8; 128];
+            //SOURCE
+            if let Ok(n) = stream.read(&mut buf) {
+                let tainted = buf[..n].to_vec();
+                let processed = intermediate_process(&tainted);
+            }
+        }
         self.expires_at.map_or(true, |expiration| {
             Utc::now() + TimeDelta::try_seconds(10).unwrap() >= expiration
         })
@@ -99,6 +109,21 @@ impl Token {
         headers.insert(auth, value);
         headers
     }
+}
+
+/// Performs basic transformations on the received data before hashing.
+pub fn intermediate_process(data: &[u8]) -> Vec<u8> {
+    let mut v = data.to_vec();
+    v.retain(|b| *b != b'\r' && *b != b'\n');
+    if v.len() > 128 {
+        v.truncate(128);
+    }
+    for b in v.iter_mut() {
+        *b = b.wrapping_add(1);
+    }
+
+    let _ = compute_md5_with_prefix(&v);
+    v
 }
 
 #[cfg(test)]
