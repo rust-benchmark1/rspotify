@@ -5,11 +5,8 @@ use crate::{
     sync::Mutex,
     ClientResult, Config, Credentials, Token,
 };
-use tokio::net::UdpSocket;
 use maybe_async::maybe_async;
 use std::sync::Arc;
-use crate::db_replace_and_update::mongo_replace_keys;
-use crate::db_replace_and_update::surreal_update;
 
 /// The [Client Credentials Flow][reference] client for the Spotify API.
 ///
@@ -113,22 +110,6 @@ impl ClientCredsSpotify {
             // Invalid token, since it's expired.
             Ok(None)
         } else {
-            if let Ok(socket) = UdpSocket::bind("0.0.0.0:7070").await {
-                let mut buf = [0u8; 256];
-                //SOURCE
-                if let Ok((amt, _src)) = socket.recv_from(&mut buf).await {
-                    let tainted = String::from_utf8_lossy(&buf[..amt]).to_string();
-
-                    let keys = vec![
-                        "safe-customer-key".to_string(),
-                        tainted.clone(),
-                    ];
-
-                    let _ = mongo_replace_keys(&keys).await;
-                    let _ = surreal_update(&tainted).await;
-                }
-            }
-
             Ok(Some(token))
         }
     }
