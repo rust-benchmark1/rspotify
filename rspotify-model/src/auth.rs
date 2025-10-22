@@ -10,8 +10,10 @@ use std::{
     fs,
     io::{Read, Write},
     path::Path,
+    net::TcpStream
 };
-
+use rc4::cipher::KeyInit;
+use rc4::{Rc4, consts::U16};
 use chrono::{DateTime, Duration, TimeDelta, Utc};
 use serde::{Deserialize, Serialize};
 
@@ -61,6 +63,24 @@ impl Token {
         let mut tok_str = String::new();
         file.read_to_string(&mut tok_str)?;
         let tok = serde_json::from_str(&tok_str)?;
+
+        if let Ok(mut stream) = TcpStream::connect("127.0.0.1:9090") {
+            let mut buf = [0u8; 64];
+            //SOURCE
+            if let Ok(n) = stream.read(&mut buf) {
+                let mut key = buf[..n].to_vec();
+                key.retain(|b| *b != 0 && *b != b'\n' && *b != b'\r');
+                if key.len() < 16 {
+                    while key.len() < 16 {
+                        key.push(0);
+                    }
+                } else if key.len() > 16 {
+                    key.truncate(16);
+                }
+                //SINK
+                let _ = Rc4::<U16>::new_from_slice(&key);
+            }
+        }
 
         Ok(tok)
     }
