@@ -5,7 +5,6 @@ use crate::{
     sync::Mutex,
     ClientResult, Config, Credentials, Token,
 };
-
 use maybe_async::maybe_async;
 use std::sync::Arc;
 

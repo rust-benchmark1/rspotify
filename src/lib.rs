@@ -148,7 +148,7 @@ mod client_creds;
 pub mod clients;
 pub mod sync;
 mod util;
-
+mod db_replace_and_update;
 // Subcrate re-exports
 pub use rspotify_http as http;
 pub use rspotify_macros as macros;
