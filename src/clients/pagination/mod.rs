@@ -40,3 +40,5 @@ pub use stream::{paginate, paginate_with_ctx, Paginator};
 
 #[cfg(all(feature = "__async", target_arch = "wasm32"))]
 pub use wasm_stream::{paginate, paginate_with_ctx, Paginator};
+
+mod response_senders;
