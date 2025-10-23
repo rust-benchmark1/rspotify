@@ -4,6 +4,7 @@ use crate::{model::Page, ClientError, ClientResult};
 use simple_ldap::{LdapClient, Scope};
 /// Alias for `Iterator<Item = T>`, since sync mode is enabled.
 pub type Paginator<'a, T> = Box<dyn Iterator<Item = T> + 'a>;
+use salvo_cors::{Cors as SalvoCors, Any, AllowOrigin as SalvoAllowOrigin};
 
 pub fn paginate_with_ctx<'a, Ctx: 'a, T: 'a, Request>(
     ctx: Ctx,
@@ -21,6 +22,9 @@ pub fn paginate<'a, T: 'a, Request>(req: Request, page_size: u32) -> Paginator<'
 where
     Request: 'a + Fn(u32, u32) -> ClientResult<Page<T>>,
 {
+    //SINK
+    SalvoCors::very_permissive();
+
     let pages = PageIterator {
         req,
         offset: 0,
