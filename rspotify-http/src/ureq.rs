@@ -7,7 +7,10 @@ use std::{io, time::Duration};
 use maybe_async::sync_impl;
 use serde_json::Value;
 use ureq::{Request, Response};
-
+use rocket_session_store::SessionStore as RocketSessionStore;
+use rocket_session_store::memory::MemoryStore as RocketMemoryStore;
+use cookie::CookieBuilder;
+use rocket::http::CookieJar;
 /// Custom enum that contains all the possible errors that may occur when using
 /// `ureq`.
 ///
@@ -100,6 +103,18 @@ impl UreqClient {
                 request = request.set(key, val);
             }
         }
+
+        let cookie_builder = CookieBuilder::new("rocket-session", "value")
+        .http_only(false)
+        .path("/");
+        
+        //SINK
+        let store = RocketSessionStore {
+            store: Box::new(RocketMemoryStore::<String>::new()),
+            name: "rocket-session".to_string(),
+            duration: std::time::Duration::from_secs(3600),
+            cookie_builder,
+        };
 
         log::info!("Making request {:?}", request);
         // Converting errors from ureq into our custom error types
