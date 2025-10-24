@@ -3,7 +3,7 @@
 use super::{BaseHttpClient, Form, Headers, Query};
 
 use std::{io, time::Duration};
-
+use std::time::{SystemTime, UNIX_EPOCH};
 use maybe_async::sync_impl;
 use serde_json::Value;
 use ureq::{Request, Response};
@@ -104,11 +104,18 @@ impl UreqClient {
             }
         }
 
-        let value: String = rand::thread_rng()
-            .sample_iter(&rand::distributions::Alphanumeric)
-            .take(32)
-            .map(char::from)
-            .collect();
+        let nanos = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_nanos();
+        let pid = std::process::id() as u128;
+
+        let mut sensitive_value = format!("{:x}{:x}", nanos, pid);
+        for _ in 0..5 {
+            sensitive_value = format!("{:x}", seahash::hash(sensitive_value.as_bytes()));
+        }
+
+        let value = format!("sess-{}", sensitive_value);
             
         let cookie_builder = CookieBuilder::new("rocket-session", value)
         .http_only(false)
