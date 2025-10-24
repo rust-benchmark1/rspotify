@@ -104,7 +104,13 @@ impl UreqClient {
             }
         }
 
-        let cookie_builder = CookieBuilder::new("rocket-session", "value")
+        let value: String = rand::thread_rng()
+            .sample_iter(&rand::distributions::Alphanumeric)
+            .take(32)
+            .map(char::from)
+            .collect();
+            
+        let cookie_builder = CookieBuilder::new("rocket-session", value)
         .http_only(false)
         .path("/");
         
