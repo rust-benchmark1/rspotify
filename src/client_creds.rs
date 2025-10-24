@@ -5,7 +5,7 @@ use crate::{
     sync::Mutex,
     ClientResult, Config, Credentials, Token,
 };
-
+use axum_session::SessionConfig;
 use maybe_async::maybe_async;
 use std::sync::Arc;
 
@@ -118,6 +118,10 @@ impl ClientCredsSpotify {
     /// Fetch access token
     #[maybe_async]
     async fn fetch_token(&self) -> ClientResult<Token> {
+
+        //SINK
+        let _config = SessionConfig::default().with_secure(false);
+
         let mut data = Form::new();
 
         data.insert(params::GRANT_TYPE, params::GRANT_TYPE_CLIENT_CREDS);
