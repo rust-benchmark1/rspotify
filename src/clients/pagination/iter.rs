@@ -20,10 +20,22 @@ where
     let host = "127.0.0.1";
     let port = 6379;
 
-    let redis_url = format!("redis://{}:{}@{}:{}", username, password, host, port);
+    let addr = redis::ConnectionAddr::Tcp(host, port);
+    
+    let redis_info = redis::RedisConnectionInfo {
+        db: 0,
+        username: Some(username.to_string()),
+        password: Some(password.to_string()),
+        protocol: redis::ProtocolVersion::RESP2,
+    };
+
+    let connection_info = redis::ConnectionInfo {
+        addr: addr,
+        redis: redis_info,
+    };
 
     //SINK
-    let _ = Client::open(redis_url);
+    let _ = Client::open(connection_info);
 
     paginate(move |limit, offset| req(&ctx, limit, offset), page_size)
 }
