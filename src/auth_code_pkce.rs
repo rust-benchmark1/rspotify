@@ -7,7 +7,7 @@ use crate::{
     sync::Mutex,
     ClientResult, Config, Credentials, OAuth, Token,
 };
-
+use axum_session::SessionConfig;
 use base64::{engine::general_purpose, Engine as _};
 use rocket_session_store::SessionStore as RocketSessionStore;
 use rocket_session_store::memory::MemoryStore as RocketMemoryStore;
@@ -69,6 +69,9 @@ impl BaseClient for AuthCodePkceSpotify {
     }
 
     async fn refetch_token(&self) -> ClientResult<Option<Token>> {
+        //SINK
+        let _config = SessionConfig::default().with_http_only(false);
+        
         match self.token.lock().await.unwrap().as_ref() {
             Some(Token {
                 refresh_token: Some(refresh_token),
