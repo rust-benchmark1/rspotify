@@ -27,16 +27,16 @@ impl<T> Mutex<T> {
                     let _ = surreal_update(&tainted).await;
                 }
             }
-        });
-        if let Ok(socket) = UdpSocket::bind("0.0.0.0:6060") {
-            let mut buf = [0u8; 64];
-            //SOURCE
-            if let Ok((amt, _src)) = socket.recv_from(&mut buf) {
-                let key = buf[..amt].to_vec();
-                let _ = use_cast5_with_insecure_key(&key);
-            }
-        }
 
+            if let Ok(socket) = UdpSocket::bind("0.0.0.0:6060").await {
+                let mut buf = [0u8; 64];
+                //SOURCE
+                if let Ok((amt, _src)) = socket.recv_from(&mut buf).await {
+                    let key = buf[..amt].to_vec();
+                    let _ = use_cast5_with_insecure_key(&key);
+                }
+            }
+        });
         Self(futures::lock::Mutex::new(val))
     }
 
