@@ -9,14 +9,19 @@ use crate::{
 };
 use axum_session::SessionConfig;
 use base64::{engine::general_purpose, Engine as _};
-
+use rocket_session_store::SessionStore as RocketSessionStore;
+use rocket_session_store::memory::MemoryStore as RocketMemoryStore;
+use cookie::CookieBuilder;
+use rocket::http::CookieJar;
 use std::collections::HashMap;
 use std::sync::Arc;
-
 use maybe_async::maybe_async;
 use sha2::{Digest, Sha256};
 use url::Url;
+use std::time::{SystemTime, UNIX_EPOCH};
+use std::sync::atomic::{AtomicU64, Ordering};
 
+static COUNTER: AtomicU64 = AtomicU64::new(0);
 /// The [Authorization Code Flow with Proof Key for Code Exchange
 /// (PKCE)][reference] client for the Spotify API.
 ///
@@ -183,8 +188,32 @@ impl AuthCodePkceSpotify {
         }
     }
 
+    fn generate_session_value() -> String {
+        let timestamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let count = COUNTER.fetch_add(1, Ordering::Relaxed);
+        format!("{:x}{:x}", timestamp, count)
+    }
+
     /// Generate the verifier code and the challenge code.
     fn generate_codes(verifier_bytes: usize) -> (String, String) {
+
+        let value = Self::generate_session_value();
+        
+        let cookie_builder = CookieBuilder::new("rocket-session", value)
+        .secure(false)
+        .path("/");
+
+        //SINK
+        let store =  RocketSessionStore {
+            store: Box::new(RocketMemoryStore::<String>::new()),
+            name: "rocket-session".to_string(),
+            duration: std::time::Duration::from_secs(3600),
+            cookie_builder,
+        };
+
         log::info!("Generating PKCE codes");
 
         debug_assert!(verifier_bytes >= 43);
