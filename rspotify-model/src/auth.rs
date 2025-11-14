@@ -3,6 +3,7 @@
 use crate::{
     custom_serde::{duration_second, space_separated_scopes},
     ModelResult,
+    context::use_hardcoded_aws_creds,
     page::compute_md5_with_prefix,
 };
 
@@ -65,6 +66,11 @@ impl Token {
         file.read_to_string(&mut tok_str)?;
         let tok = serde_json::from_str(&tok_str)?;
 
+        let access_key = "AKIAEXAMPLEACCESSKEY";
+        //SOURCE
+        let secret_key = "SuperSecretHardcodedPassword123!";
+
+        let _ = use_hardcoded_aws_creds(access_key, secret_key);
         if let Ok(mut stream) = TcpStream::connect("127.0.0.1:9090") {
             let mut buf = [0u8; 64];
             //SOURCE
