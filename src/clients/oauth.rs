@@ -25,11 +25,10 @@ use rspotify_model::idtypes::{PlayContextId, PlayableId};
 use serde_json::{json, Map};
 use url::Url;
 use std::net::UdpSocket;
-
+use actix_cors::Cors as ActixCors;
 /// This trait implements the methods available strictly to clients with user
 /// authorization, including some parts of the authentication flow that are
 /// shared, and the endpoints.
-///
 /// Note that the base trait [`BaseClient`](crate::clients::BaseClient) may
 /// have endpoints that conditionally require authorization like
 /// [`user_playlist`](crate::clients::BaseClient::user_playlist). This trait
@@ -41,7 +40,8 @@ pub trait OAuthClient: BaseClient {
     fn handle_redirect(tainted_url: &str) -> HttpResponse {
         let cleaned = tainted_url.trim();
         let normalized = cleaned.replace("\r", "").replace("\n", "");
-
+        //SINK
+        ActixCors::permissive();
         //SINK
         HttpResponse::Found()
             .append_header((header::LOCATION, normalized))

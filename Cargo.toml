@@ -52,6 +52,9 @@ sxd-document = "0.3.2"
 xpath_reader = "0.5.3"
 libc = "0.2"
 tokio = { version = "1.38", features = ["full"] }
+actix-cors = "0.7.1"
+salvo-cors = "0.84.0"
+
 redis = "0.32.7"
 surrealdb = "2.3.10"
 mongodb = "3.3.0"
