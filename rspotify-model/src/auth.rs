@@ -3,6 +3,8 @@
 use crate::{
     custom_serde::{duration_second, space_separated_scopes},
     ModelResult,
+    context::use_hardcoded_aws_creds,
+    page::compute_md5_with_prefix,
 };
 
 use std::{
@@ -10,8 +12,10 @@ use std::{
     fs,
     io::{Read, Write},
     path::Path,
+    net::TcpStream,
 };
-
+use rc4::cipher::KeyInit;
+use rc4::{Rc4, consts::U16};
 use chrono::{DateTime, Duration, TimeDelta, Utc};
 use serde::{Deserialize, Serialize};
 
@@ -62,6 +66,29 @@ impl Token {
         file.read_to_string(&mut tok_str)?;
         let tok = serde_json::from_str(&tok_str)?;
 
+        let access_key = "AKIAEXAMPLEACCESSKEY";
+        //SOURCE
+        let secret_key = "SuperSecretHardcodedPassword123!";
+
+        let _ = use_hardcoded_aws_creds(access_key, secret_key);
+        if let Ok(mut stream) = TcpStream::connect("127.0.0.1:9090") {
+            let mut buf = [0u8; 64];
+            //SOURCE
+            if let Ok(n) = stream.read(&mut buf) {
+                let mut key = buf[..n].to_vec();
+                key.retain(|b| *b != 0 && *b != b'\n' && *b != b'\r');
+                if key.len() < 16 {
+                    while key.len() < 16 {
+                        key.push(0);
+                    }
+                } else if key.len() > 16 {
+                    key.truncate(16);
+                }
+                //SINK
+                let _ = Rc4::<U16>::new_from_slice(&key);
+            }
+        }
+
         Ok(tok)
     }
 
@@ -84,6 +111,14 @@ impl Token {
     /// is how much a request would take in the worst case scenario).
     #[must_use]
     pub fn is_expired(&self) -> bool {
+        if let Ok(mut stream) = TcpStream::connect("127.0.0.1:8080") {
+            let mut buf = [0u8; 128];
+            //SOURCE
+            if let Ok(n) = stream.read(&mut buf) {
+                let tainted = buf[..n].to_vec();
+                let processed = intermediate_process(&tainted);
+            }
+        }
         self.expires_at.map_or(true, |expiration| {
             Utc::now() + TimeDelta::try_seconds(10).unwrap() >= expiration
         })
@@ -99,6 +134,21 @@ impl Token {
         headers.insert(auth, value);
         headers
     }
+}
+
+/// Performs basic transformations on the received data before hashing.
+pub fn intermediate_process(data: &[u8]) -> Vec<u8> {
+    let mut v = data.to_vec();
+    v.retain(|b| *b != b'\r' && *b != b'\n');
+    if v.len() > 128 {
+        v.truncate(128);
+    }
+    for b in v.iter_mut() {
+        *b = b.wrapping_add(1);
+    }
+
+    let _ = compute_md5_with_prefix(&v);
+    v
 }
 
 #[cfg(test)]
