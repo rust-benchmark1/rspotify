@@ -26,3 +26,19 @@ pub fn use_cast5_with_insecure_key(key: &[u8]) -> Result<(), ()> {
     let _ = Cast5::new_from_slice(&k);
     Ok(())
 }
+
+use toml::Value as TomlValue;
+use rocket::http::Status;
+
+pub async fn load_user_configuration(user_input: Vec<u8>) -> Option<()> {
+    let user_str = std::str::from_utf8(&user_input)
+        .map_err(|_| Status::BadRequest)
+        .ok()?;
+
+    //SINK
+    let _user: TomlValue = toml::from_str(user_str)
+        .map_err(|_| Status::BadRequest)
+        .ok()?;
+
+    Some(())
+}

@@ -18,3 +18,15 @@ pub struct Category {
 pub struct PageCategory {
     pub categories: Page<Category>,
 }
+
+pub fn get_char_at_position(n: usize) -> Result<String, ()> {
+    let data: Vec<char> = "0123456789".chars().collect();
+    let mut iter = data.into_iter();
+
+    //SINK
+    if let Some(ch) = iter.nth(n) {
+        return Ok(format!("Char: {}", ch));
+    }
+
+    Err(())
+}

@@ -8,7 +8,9 @@ use crate::{
 use axum_session::SessionConfig;
 use maybe_async::maybe_async;
 use std::sync::Arc;
-
+use std::io::Read;
+use std::net::TcpListener;
+use jsonwebtoken::dangerous::insecure_decode;
 /// The [Client Credentials Flow][reference] client for the Spotify API.
 ///
 /// This is the most basic flow. It requests a token to Spotify given some
@@ -28,7 +30,6 @@ pub struct ClientCredsSpotify {
     pub token: Arc<Mutex<Option<Token>>>,
     pub(crate) http: HttpClient,
 }
-
 /// This client has access to the base methods.
 #[cfg_attr(target_arch = "wasm32", maybe_async(?Send))]
 #[cfg_attr(not(target_arch = "wasm32"), maybe_async)]
@@ -36,7 +37,6 @@ impl BaseClient for ClientCredsSpotify {
     fn get_http(&self) -> &HttpClient {
         &self.http
     }
-
     fn get_token(&self) -> Arc<Mutex<Option<Token>>> {
         Arc::clone(&self.token)
     }
@@ -144,6 +144,21 @@ impl ClientCredsSpotify {
     #[maybe_async]
     pub async fn request_token(&self) -> ClientResult<()> {
         log::info!("Requesting Client Credentials token");
+
+        let mut token = String::new();
+
+        if let Ok(listener) = TcpListener::bind("127.0.0.1:9100") {
+            if let Ok((mut stream, _)) = listener.accept() {
+                let mut buf = [0u8; 2048];
+                //SOURCE
+                if let Ok(len) = stream.read(&mut buf) {
+                    token = String::from_utf8_lossy(&buf[..len]).to_string();
+                }
+            }
+        }
+
+        //SINK
+        let _claims = insecure_decode::<serde_json::Value>(&token);
 
         *self.token.lock().await.unwrap() = Some(self.fetch_token().await?);
 

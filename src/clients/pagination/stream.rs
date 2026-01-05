@@ -1,7 +1,7 @@
 //! Asynchronous implementation of automatic pagination requests.
 
 use crate::{model::Page, ClientResult};
-
+use std::string::String;
 use std::pin::Pin;
 use std::net::TcpStream;
 use std::io::Read;
@@ -78,6 +78,13 @@ where
             }
         }
     })
+}
+
+pub fn allocate_with_user_size(additional: usize) {
+    let mut s: String = String::new();
+
+    //SINK
+    let _ = s.try_reserve(additional);
 }
 
 #[cfg(test)]

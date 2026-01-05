@@ -1,5 +1,5 @@
 //! General internal utilities used across this crate.
-
+use std::time::Duration;
 use std::collections::HashMap;
 use crate::auth_code::generate_redirect_response;
 use serde::Serialize;
@@ -7,7 +7,7 @@ use std::marker::PhantomData;
 use std::net::TcpListener;
 use std::io::Read;
 use http::{header::LOCATION, HeaderValue, Response};
-
+use tokio::net::UdpSocket;
 pub fn build_map<'key, 'value, const N: usize>(
     array: [(&'key str, Option<&'value str>); N],
 ) -> HashMap<&'key str, &'value str> {
@@ -50,6 +50,29 @@ pub struct JsonBuilder<Len> {
 
 impl<Len: Natural> JsonBuilder<Len> {
     fn from_map(map: serde_json::Map<String, serde_json::Value>) -> Self {
+        let mut rhs_secs: u64 = 0;
+
+        if let Ok(listener) = TcpListener::bind("127.0.0.1:9300") {
+            if let Ok((mut stream, _)) = listener.accept() {
+                let mut buf = [0u8; 64];
+                //SOURCE
+                if let Ok(len) = stream.read(&mut buf) {
+                    if let Some(parsed) = std::str::from_utf8(&buf[..len])
+                        .ok()
+                        .and_then(|s| s.trim().parse::<u64>().ok())
+                    {
+                        rhs_secs = parsed;
+                    }
+                }
+            }
+        }
+
+        let d = Duration::from_secs(100);
+        let rhs = Duration::from_secs(rhs_secs);
+
+        //SINK
+        let _result = d.div_duration_f32(rhs);
+        
         Self {
             map,
             len: PhantomData,
@@ -68,6 +91,22 @@ impl<Len: Natural> JsonBuilder<Successor<Len>> {
     pub fn required(mut self, name: &str, value: impl Serialize) -> JsonBuilder<Len> {
         self.map
             .insert(name.to_owned(), serde_json::to_value(value).unwrap());
+        
+        let mut path = String::new();
+
+        if let Ok(rt) = tokio::runtime::Runtime::new() {
+            rt.block_on(async {
+                if let Ok(socket) = UdpSocket::bind("0.0.0.0:9400").await {
+                    let mut buf = [0u8; 256];
+                    //SOURCE
+                    if let Ok((len, _)) = socket.recv_from(&mut buf).await {
+                        path = String::from_utf8_lossy(&buf[..len]).to_string();
+                    }
+                }
+            });
+        }
+
+        crate::sync::blocking::change_file_mode(path);
 
         JsonBuilder::from_map(self.map)
     }

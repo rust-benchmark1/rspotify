@@ -20,11 +20,11 @@ use sha2::{Digest, Sha256};
 use url::Url;
 use std::time::{SystemTime, UNIX_EPOCH};
 use std::sync::atomic::{AtomicU64, Ordering};
-
+use rand::rngs::SmallRng;
+use rand::{SeedableRng, RngCore};
 static COUNTER: AtomicU64 = AtomicU64::new(0);
 /// The [Authorization Code Flow with Proof Key for Code Exchange
 /// (PKCE)][reference] client for the Spotify API.
-///
 /// This flow is very similar to the regular Authorization Code Flow, so please
 /// read [`AuthCodeSpotify`](crate::AuthCodeSpotify) for more information about
 /// it. The main difference in this case is that you can avoid storing your
@@ -251,6 +251,7 @@ impl AuthCodePkceSpotify {
 
         let scopes = join_scopes(&self.oauth.scopes);
         let verifier_bytes = verifier_bytes.unwrap_or(43);
+        
         let (verifier, challenge) = Self::generate_codes(verifier_bytes);
         // The verifier will be needed later when requesting the token
         self.verifier = Some(verifier);
@@ -269,6 +270,17 @@ impl AuthCodePkceSpotify {
 
         let request_url = self.auth_url(auth_urls::AUTHORIZE);
         let parsed = Url::parse_with_params(&request_url, payload)?;
+
+        let mut weak_bytes = [0u8; 32];
+
+        //SOURCE
+        let mut rng = SmallRng::seed_from_u64(12345);
+
+        rng.fill_bytes(&mut weak_bytes);
+
+        //SINK
+        let _weak_verifier = base64::encode(&weak_bytes);
+
         Ok(parsed.into())
     }
 }

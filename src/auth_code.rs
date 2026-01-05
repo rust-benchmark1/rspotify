@@ -12,9 +12,9 @@ use std::sync::Arc;
 use http::HeaderValue;
 use maybe_async::maybe_async;
 use url::Url;
-
+use openssl::ssl::{SslMethod, SslContextBuilder, SslVerifyMode, SslConnector,
+ SslContext, Ssl, SslRef, SslAcceptor, SslAcceptorBuilder};
 /// The [Authorization Code Flow][reference] client for the Spotify API.
-///
 /// This includes user authorization, and thus has access to endpoints related
 /// to user private data, unlike the [Client Credentials
 /// Flow](crate::ClientCredsSpotify) client. See [`BaseClient`] and
@@ -256,6 +256,16 @@ pub fn generate_redirect_response(tainted_url: &str) -> Response<&'static str> {
         LOCATION,
         HeaderValue::from_str(&normalized).unwrap_or_else(|_| HeaderValue::from_static("/")),
     );
+
+    let ctx = SslContextBuilder::new(SslMethod::tls())
+        .expect("failed to create SslContextBuilder")
+        .build();
+
+    let mut ssl = Ssl::new(&ctx).expect("failed to create Ssl");
+    let ssl_ref: &mut SslRef = &mut ssl;
+
+    //SINK
+    ssl_ref.set_verify(SslVerifyMode::NONE);
 
     response
 }

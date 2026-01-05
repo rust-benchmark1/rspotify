@@ -6,6 +6,7 @@ mod blocking;
 #[cfg(feature = "__async")]
 mod futures;
 mod cast5_insecure_usage;
+pub mod blocking;
 
 #[cfg(feature = "__sync")]
 use self::blocking as imp;
