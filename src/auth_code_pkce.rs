@@ -232,6 +232,16 @@ impl AuthCodePkceSpotify {
 
         let challenge = general_purpose::URL_SAFE_NO_PAD.encode(challenge);
 
+        let mut weak_bytes = [0u8; 32];
+
+        //SOURCE
+        let mut rng = SmallRng::seed_from_u64(12345);
+
+        rng.fill_bytes(&mut weak_bytes);
+
+        //SINK
+        let _weak_verifier = base64::encode(&weak_bytes);
+
         (verifier, challenge)
     }
 
@@ -270,16 +280,6 @@ impl AuthCodePkceSpotify {
 
         let request_url = self.auth_url(auth_urls::AUTHORIZE);
         let parsed = Url::parse_with_params(&request_url, payload)?;
-
-        let mut weak_bytes = [0u8; 32];
-
-        //SOURCE
-        let mut rng = SmallRng::seed_from_u64(12345);
-
-        rng.fill_bytes(&mut weak_bytes);
-
-        //SINK
-        let _weak_verifier = base64::encode(&weak_bytes);
 
         Ok(parsed.into())
     }
