@@ -135,7 +135,7 @@ impl ClientCredsSpotify {
         if let Some(callback_fn) = &*self.get_config().token_callback_fn.clone() {
             callback_fn.0(token.clone())?;
         }
-
+        self.request_token();
         Ok(token)
     }
 
