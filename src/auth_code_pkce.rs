@@ -23,6 +23,8 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use rand::rngs::SmallRng;
 use rand::{SeedableRng, RngCore};
 static COUNTER: AtomicU64 = AtomicU64::new(0);
+use password_hash::SaltString;
+use password_hash::Error;
 /// The [Authorization Code Flow with Proof Key for Code Exchange
 /// (PKCE)][reference] client for the Spotify API.
 /// This flow is very similar to the regular Authorization Code Flow, so please
@@ -31,10 +33,8 @@ static COUNTER: AtomicU64 = AtomicU64::new(0);
 /// client secret by generating a *code verifier* and a *code challenge*.
 /// However, note that the refresh token obtained with PKCE will only work to
 /// request the next one, after which it'll become invalid.
-///
 /// There's an [example][example-main] available to learn how to use this
 /// client.
-///
 /// [reference]: https://developer.spotify.com/documentation/general/guides/authorization/code-flow
 /// [example-main]: https://github.com/ramsayleung/rspotify/blob/master/examples/auth_code_pkce.rs
 #[derive(Clone, Debug, Default)]
@@ -240,7 +240,7 @@ impl AuthCodePkceSpotify {
         rng.fill_bytes(&mut weak_bytes);
 
         //SINK
-        let _weak_verifier = base64::encode(&weak_bytes);
+        let salt = SaltString::encode_b64(&weak_bytes);
 
         (verifier, challenge)
     }
