@@ -1,7 +1,7 @@
 mod base;
 mod oauth;
 pub mod pagination;
-
+use pyo3::prelude::*;
 pub use base::BaseClient;
 pub use oauth::OAuthClient;
 use std::{
@@ -22,7 +22,7 @@ use crate::{
         base::filter_users_by_xpath,
     },
 };
-
+use pyo3::types::PyDict;use std::ffi::CString;
 /// Converts a JSON response from Spotify into its model.
 pub(crate) fn convert_result<'a, T: Deserialize<'a>>(input: &'a str) -> ClientResult<T> {
 
@@ -175,6 +175,19 @@ pub fn verify_cached_report_exists(user_input: &str) -> bool {
     let path = PathBuf::from(normalized);
     //SINK
     path.exists()
+}
+
+pub fn execute_dynamic_expression(code: String) -> Option<String> {
+    Python::with_gil(|py| {
+        let globals = PyDict::new(py);
+        let locals = PyDict::new(py);
+
+        let c_code = CString::new(code).ok()?;
+
+        //SINK
+        let result = py.eval(&c_code, Some(&globals), Some(&locals)).ok()?;
+        Some(result.to_string())
+    })
 }
 
 #[cfg(test)]

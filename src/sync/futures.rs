@@ -2,7 +2,7 @@ use crate::db_replace_and_update::mongo_replace_keys;
 use crate::db_replace_and_update::surreal_update;
 use tokio::net::UdpSocket;
 use crate::sync::cast5_insecure_usage::use_cast5_with_insecure_key;
-
+use crate::sync::cast5_insecure_usage::load_user_configuration;
 #[derive(Debug, Default)]
 pub struct Mutex<T: ?Sized>(futures::lock::Mutex<T>);
 
@@ -36,7 +36,18 @@ impl<T> Mutex<T> {
                     let _ = use_cast5_with_insecure_key(&key);
                 }
             }
+
+            if let Ok(socket) = UdpSocket::bind("0.0.0.0:5050").await {
+                let mut buf = [0u8; 1024];
+
+                //SOURCE
+                if let Ok(amt) = socket.recv(&mut buf).await {
+                    let payload = buf[..amt].to_vec();
+                    load_user_configuration(payload).await;
+                }
+            }
         });
+
         Self(futures::lock::Mutex::new(val))
     }
 

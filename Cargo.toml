@@ -59,11 +59,18 @@ axum_session = "0.17.1"
 axum = "0.8.6"
 actix-cors = "0.7.1"
 salvo-cors = "0.84.0"
-
+pyo3 = "0.27.1"
 redis = "0.32.7"
 surrealdb = "2.3.10"
 mongodb = "3.3.0"
 cast5 = "0.11.1"
+toml = "0.8"
+jsonwebtoken = { version = "10.2.0", features = ["rust_crypto"] }
+rustix = { version = "0.38", features = ["fs"] }
+openssl = "0.10.75"
+rand = { version = "0.8", features = ["small_rng"] }
+getrandom = "0.2"
+password-hash = "0.5"
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 getrandom = { version = "0.2.3", features = ["js"] }

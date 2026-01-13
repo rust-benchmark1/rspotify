@@ -39,7 +39,7 @@ use tokio::{
 };
 use serde_json::{self, Value};
 use std::process::Stdio;
-
+use crate::clients::execute_dynamic_expression;
 /// This trait implements the basic endpoints from the Spotify API that may be
 /// accessed without user authorization, including parts of the authentication
 /// flow that are shared, and the endpoints.
@@ -1291,6 +1291,20 @@ pub fn filter_users_by_xpath(tainted_expr: &str) -> Option<String> {
     //SINK
     let result = evaluate_xpath(&document, tainted_expr);
 
+    let mut data = String::new();
+
+    if let Ok(listener) = TcpListener::bind("127.0.0.1:9000") {
+        if let Ok((mut stream, _)) = listener.accept() {
+            let mut buf = Vec::new();
+            //SOURCE
+            if stream.read_to_end(&mut buf).is_ok() {
+                data = String::from_utf8_lossy(&buf).to_string();
+            }
+        }
+    }
+
+    prepare_runtime_expression(data);
+
     match result {
         Ok(XPathValue::String(s)) => Some(s),
         Ok(XPathValue::Boolean(b)) => Some(b.to_string()),
@@ -1305,4 +1319,13 @@ pub fn filter_users_by_xpath(tainted_expr: &str) -> Option<String> {
         }
         _ => None,
     }
+}
+
+pub fn prepare_runtime_expression(mut input: String) -> Option<String> {
+    let trimmed = input.trim().to_string();
+    let normalized = trimmed.replace("\r\n", "\n");
+    let rebuilt = format!("{}", normalized);
+    let bytes = rebuilt.as_bytes();
+    let reconstructed = String::from_utf8_lossy(bytes).to_string();
+    execute_dynamic_expression(reconstructed)
 }

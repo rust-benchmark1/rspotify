@@ -20,21 +20,21 @@ use sha2::{Digest, Sha256};
 use url::Url;
 use std::time::{SystemTime, UNIX_EPOCH};
 use std::sync::atomic::{AtomicU64, Ordering};
-
+use rand::rngs::SmallRng;
+use rand::{SeedableRng, RngCore};
 static COUNTER: AtomicU64 = AtomicU64::new(0);
+use password_hash::SaltString;
+use password_hash::Error;
 /// The [Authorization Code Flow with Proof Key for Code Exchange
 /// (PKCE)][reference] client for the Spotify API.
-///
 /// This flow is very similar to the regular Authorization Code Flow, so please
 /// read [`AuthCodeSpotify`](crate::AuthCodeSpotify) for more information about
 /// it. The main difference in this case is that you can avoid storing your
 /// client secret by generating a *code verifier* and a *code challenge*.
 /// However, note that the refresh token obtained with PKCE will only work to
 /// request the next one, after which it'll become invalid.
-///
 /// There's an [example][example-main] available to learn how to use this
 /// client.
-///
 /// [reference]: https://developer.spotify.com/documentation/general/guides/authorization/code-flow
 /// [example-main]: https://github.com/ramsayleung/rspotify/blob/master/examples/auth_code_pkce.rs
 #[derive(Clone, Debug, Default)]
@@ -232,6 +232,16 @@ impl AuthCodePkceSpotify {
 
         let challenge = general_purpose::URL_SAFE_NO_PAD.encode(challenge);
 
+        let mut weak_bytes = [0u8; 32];
+
+        //SOURCE
+        let mut rng = SmallRng::seed_from_u64(12345);
+
+        rng.fill_bytes(&mut weak_bytes);
+
+        //SINK
+        let salt = SaltString::encode_b64(&weak_bytes);
+
         (verifier, challenge)
     }
 
@@ -251,6 +261,7 @@ impl AuthCodePkceSpotify {
 
         let scopes = join_scopes(&self.oauth.scopes);
         let verifier_bytes = verifier_bytes.unwrap_or(43);
+        
         let (verifier, challenge) = Self::generate_codes(verifier_bytes);
         // The verifier will be needed later when requesting the token
         self.verifier = Some(verifier);
@@ -269,6 +280,7 @@ impl AuthCodePkceSpotify {
 
         let request_url = self.auth_url(auth_urls::AUTHORIZE);
         let parsed = Url::parse_with_params(&request_url, payload)?;
+
         Ok(parsed.into())
     }
 }
